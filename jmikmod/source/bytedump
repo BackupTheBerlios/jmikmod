@@ -1,0 +1,30 @@
+#!/usr/bin/perl
+
+require 'flush.pl';
+
+open (IN, "<&STDIN");
+
+open (OUT, ">&STDOUT");
+
+my $iBUF_SIZE = 1024;
+my ($buf, $a, $out);
+
+while (($len = read(IN, $buf, $iBUF_SIZE)) == $iBUF_SIZE)
+{
+    $out = '';
+    for($a=0;$a<$iBUF_SIZE;$a++)
+    {
+        $out .= sprintf("%.2lX\n", ord(substr($buf, $a)));
+    }
+    printflush(OUT, $out);
+}
+
+$out = '';
+for($a=0;$a<$len;$a++)
+{
+    $out .= sprintf("%.2lX\n", ord(substr($buf, $a)));
+}
+printflush(OUT, $out);
+
+
+

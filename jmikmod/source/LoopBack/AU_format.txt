@@ -1,0 +1,297 @@
+------------------------------------------------------------------------
+The NeXT/Sun audio file format
+------------------------------
+
+Here's the complete story on the file format, from the NeXT
+documentation.  (Note that the "magic" number is ((int)0x2e736e64),
+which equals ".snd".)  Also, at the end, I've added a litte document
+that someone posted to the net a couple of years ago, that describes
+the format in a bit-by-bit fashion rather than from C.
+
+I received this from Doug Keislar, NeXT Computer.  This is also the
+Sun format, except that Sun doesn't recognize as many format codes.  I
+added the numeric codes to the table of formats and sorted it.
+
+
+SNDSoundStruct:  How a NeXT Computer Represents Sound
+
+The NeXT sound software defines the SNDSoundStruct structure to  
+represent sound.  This structure defines the soundfile and Mach-O  
+sound segment formats and the sound pasteboard type.  It's also used  
+to describe sounds in Interface Builder.  In addition, each instance  
+of the Sound Kit's Sound class encapsulates a SNDSoundStruct and  
+provides methods to access and modify its attributes.
+
+Basic sound operations, such as playing, recording, and cut-and-paste  
+editing, are most easily performed by a Sound object.  In many cases,  
+the Sound Kit obviates the need for in-depth understanding of the  
+SNDSoundStruct architecture.  For example, if you simply want to  
+incorporate sound effects into an application, or to provide a simple  
+graphic sound editor (such as the one in the Mail application), you  
+needn't be aware of the details of the SNDSoundStruct.  However, if  
+you want to closely examine or manipulate sound data you should be  
+familiar with this structure.
+
+The SNDSoundStruct contains a header, information that describes the  
+attributes of a sound, followed by the data (usually samples) that  
+represents the sound.  The structure is defined (in  
+sound/soundstruct.h) as:
+
+typedef struct {
+    int magic;               /* magic number SND_MAGIC */
+    int dataLocation;        /* offset or pointer to the data */
+    int dataSize;            /* number of bytes of data */
+    int dataFormat;          /* the data format code */
+    int samplingRate;        /* the sampling rate */
+    int channelCount;        /* the number of channels */
+    char info[4];            /* optional text information */
+} SNDSoundStruct;
+
+
+
+
+SNDSoundStruct Fields
+
+
+
+magic
+
+magic is a magic number that's used to identify the structure as a  
+SNDSoundStruct.  Keep in mind that the structure also defines the  
+soundfile and Mach-O sound segment formats, so the magic number is  
+also used to identify these entities as containing a sound.
+
+
+
+
+
+dataLocation
+
+It was mentioned above that the SNDSoundStruct contains a header  
+followed by sound data.  In reality, the structure only contains the  
+header; the data itself is external to, although usually contiguous  
+with, the structure.  (Nonetheless, it's often useful to speak of the  
+SNDSoundStruct as the header and the data.)  dataLocation is used to  
+point to the data.  Usually, this value is an offset (in bytes) from  
+the beginning of the SNDSoundStruct to the first byte of sound data.   
+The data, in this case, immediately follows the structure, so  
+dataLocation can also be thought of as the size of the structure's  
+header.  The other use of dataLocation, as an address that locates  
+data that isn't contiguous with the structure, is described in  
+"Format Codes," below.
+
+
+
+
+
+dataSize, dataFormat, samplingRate, and channelCount
+
+These fields describe the sound data.
+
+dataSize is its size in bytes (not including the size of the  
+SNDSoundStruct).
+
+dataFormat is a code that identifies the type of sound.  For sampled  
+sounds, this is the quantization format.  However, the data can also  
+be instructions for synthesizing a sound on the DSP.  The codes are  
+listed and explained in "Format Codes," below.
+
+samplingRate is the sampling rate (if the data is samples).  Three  
+sampling rates, represented as integer constants, are supported by  
+the hardware:
+
+Constant        Sampling Rate (samples/sec) 
+
+SND_RATE_CODEC  8012.821        (CODEC input)
+SND_RATE_LOW    22050.0 (low sampling rate output)
+SND_RATE_HIGH   44100.0 (high sampling rate output)
+
+channelCount is the number of channels of sampled sound.
+
+
+
+
+
+info
+
+info is a NULL-terminated string that you can supply to provide a  
+textual description of the sound.  The size of the info field is set  
+when the structure is created and thereafter can't be enlarged.  It's  
+at least four bytes long (even if it's unused).
+
+
+
+
+
+Format Codes
+
+A sound's format is represented as a positive 32-bit integer.  NeXT  
+reserves the integers 0 through 255; you can define your own format  
+and represent it with an integer greater than 255.  Most of the  
+formats defined by NeXT describe the amplitude quantization of  
+sampled sound data:
+
+Value   Code    Format 
+
+0       SND_FORMAT_UNSPECIFIED  unspecified format 
+1       SND_FORMAT_MULAW_8      8-bit mu-law samples
+2       SND_FORMAT_LINEAR_8     8-bit linear samples
+3       SND_FORMAT_LINEAR_16    16-bit linear samples
+4       SND_FORMAT_LINEAR_24    24-bit linear samples
+5       SND_FORMAT_LINEAR_32    32-bit linear samples
+6       SND_FORMAT_FLOAT        floating-point samples
+7       SND_FORMAT_DOUBLE       double-precision float samples
+8       SND_FORMAT_INDIRECT     fragmented sampled data
+9       SND_FORMAT_NESTED       ?
+10      SND_FORMAT_DSP_CORE     DSP program
+11      SND_FORMAT_DSP_DATA_8   8-bit fixed-point samples
+12      SND_FORMAT_DSP_DATA_16  16-bit fixed-point samples
+13      SND_FORMAT_DSP_DATA_24  24-bit fixed-point samples
+14      SND_FORMAT_DSP_DATA_32  32-bit fixed-point samples
+15      ?
+16      SND_FORMAT_DISPLAY      non-audio display data
+17      SND_FORMAT_MULAW_SQUELCH        ?
+18      SND_FORMAT_EMPHASIZED   16-bit linear with emphasis
+19      SND_FORMAT_COMPRESSED   16-bit linear with compression
+20      SND_FORMAT_COMPRESSED_EMPHASIZED        A combination of the two above
+21      SND_FORMAT_DSP_COMMANDS Music Kit DSP commands
+22      SND_FORMAT_DSP_COMMANDS_SAMPLES         ?
+[Some new ones supported by Sun.  This is all I currently know. --GvR]
+23      SND_FORMAT_ADPCM_G721
+24      SND_FORMAT_ADPCM_G722
+25      SND_FORMAT_ADPCM_G723_3
+26      SND_FORMAT_ADPCM_G723_5
+27      SND_FORMAT_ALAW_8
+
+
+Most formats identify different sizes and types of  
+sampled data.  Some deserve special note:  
+
+
+--      SND_FORMAT_DSP_CORE format contains data that represents a  
+loadable DSP core program.  Sounds in this format are required by the  
+SNDBootDSP() and SNDRunDSP() functions.  You create a  
+SND_FORMAT_DSP_CORE sound by reading a DSP load file (extension  
+".lod") with the SNDReadDSPfile() function.
+
+--      SND_FORMAT_DSP_COMMANDS is used to distinguish sounds that  
+contain DSP commands created by the Music Kit.  Sounds in this format  
+can only be created through the Music Kit's Orchestra class, but can  
+be played back through the SNDStartPlaying() function.
+
+--      SND_FORMAT_DISPLAY format is used by the Sound Kit's  
+SoundView class.  Such sounds can't be played.  
+
+
+--      SND_FORMAT_INDIRECT indicates data that has become  
+fragmented, as described in a separate section, below.  
+
+
+--      SND_FORMAT_UNSPECIFIED is used for unrecognized formats.
+
+
+
+
+
+Fragmented Sound Data
+
+Sound data is usually stored in a contiguous block of memory.   
+However, when sampled sound data is edited (such that a portion of  
+the sound is deleted or a portion inserted), the data may become  
+discontiguous, or fragmented.  Each fragment of data is given its own  
+SNDSoundStruct header; thus, each fragment becomes a separate  
+SNDSoundStruct structure.  The addresses of these new structures are  
+collected into a contiguous, NULL-terminated block; the dataLocation  
+field of the original SNDSoundStruct is set to the address of this  
+block, while the original format, sampling rate, and channel count  
+are copied into the new SNDSoundStructs.  
+
+
+Fragmentation serves one purpose:  It avoids the high cost of moving  
+data when the sound is edited.  Playback of a fragmented sound is  
+transparent-you never need to know whether the sound is fragmented  
+before playing it.  However, playback of a heavily fragmented sound  
+is less efficient than that of a contiguous sound.  The  
+SNDCompactSamples() C function can be used to compact fragmented  
+sound data.
+
+Sampled sound data is naturally unfragmented.  A sound that's freshly  
+recorded or retrieved from a soundfile, the Mach-O segment, or the  
+pasteboard won't be fragmented.  Keep in mind that only sampled data  
+can become fragmented.
+
+
+
+_________________________
+>From mentor.cc.purdue.edu!purdue!decwrl!ucbvax!ziploc!eps Wed Apr  4  
+23:56:23 EST 1990
+Article 5779 of comp.sys.next:
+Path: mentor.cc.purdue.edu!purdue!decwrl!ucbvax!ziploc!eps
+>From: eps@toaster.SFSU.EDU (Eric P. Scott)
+Newsgroups: comp.sys.next
+Subject: Re: Format of NeXT sndfile headers?
+Message-ID: <445@toaster.SFSU.EDU>
+Date: 31 Mar 90 21:36:17 GMT
+References: <14978@phoenix.Princeton.EDU>
+Reply-To: eps@cs.SFSU.EDU (Eric P. Scott)
+Organization: San Francisco State University
+Lines: 42
+
+In article <14978@phoenix.Princeton.EDU>
+        bskendig@phoenix.Princeton.EDU (Brian Kendig) writes:
+>I'd like to take a program I have that converts Macintosh sound  
+files
+>to NeXT sndfiles and polish it up a bit to go the other direction as
+>well.
+
+Two people have already submitted programs that do this
+(Christopher Lane and Robert Hood); check the various
+NeXT archive sites.
+
+>       Could someone please give me the format of a NeXT sndfile
+>header?
+
+"big-endian"
+        0       1       2       3
+        +-------+-------+-------+-------+
+0       | 0x2e  | 0x73  | 0x6e  | 0x64  |       "magic" number
+        +-------+-------+-------+-------+
+4       |                               |       data location
+        +-------+-------+-------+-------+
+8       |                               |       data size
+        +-------+-------+-------+-------+
+12      |                               |       data format (enum)
+        +-------+-------+-------+-------+
+16      |                               |       sampling rate (int)
+        +-------+-------+-------+-------+
+20      |                               |       channel count
+        +-------+-------+-------+-------+
+24      |       |       |       |       |       (optional) info  
+string
+
+28 = minimum value for data location
+
+data format values can be found in /usr/include/sound/soundstruct.h
+
+Most common combinations:
+
+         sampling  channel    data
+             rate    count  format              
+voice file   8012        1       1 =  8-bit mu-law
+system beep 22050        2       3 = 16-bit linear
+CD-quality  44100        2       3 = 16-bit linear
+
+------------------------------------------------------------------------
+
+
+
+-----------------------------------------------------------------------------
+Shlomi Fish                                Smart Link Ltd.
+Home E-mail: shlomif@ibm.net               Work E-mail: shlomi@slink.co.il
+Home Page: http://www.slink.co.il/~shlomi
+
+"If I had not been insane already, I would have long ago driven myself mad."
+
+                            The Enemy and how I Helped to Fight it.
+-----------------------------------------------------------------------------
+
